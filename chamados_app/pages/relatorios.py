@@ -138,7 +138,6 @@ def _calcular_agrupamento(chamados, chave):
     # Ordena do maior para o menor
     return sorted(resultado, key=lambda x: x["quantidade"], reverse=True)
 
-
 def _grafico_barras(dados, key_label, key_val, cores, uid):
     if not dados:
         st.info("Sem dados")
@@ -165,8 +164,10 @@ def _grafico_barras(dados, key_label, key_val, cores, uid):
         """
     html += "</div>"
 
-    st.markdown(f'<div style="background:#111827; border:1px solid #1e2d45; border-radius:8px; padding:16px;">{html}</div>', unsafe_allow_html=True)
-
+    # A trava de segurança: removemos as quebras de linha antes de renderizar
+    html_seguro = f'<div style="background:#111827; border:1px solid #1e2d45; border-radius:8px; padding:16px;">{html}</div>'.replace('\n', '')
+    
+    st.markdown(html_seguro, unsafe_allow_html=True)
 
 def _grafico_donut(dados, key_label, key_val, cores):
     if not dados:
@@ -195,8 +196,10 @@ def _grafico_donut(dados, key_label, key_val, cores):
         html += f'<div style="width:{pct}%; background:{cor};"></div>'
     html += "</div></div>"
 
-    st.markdown(f'<div style="background:#111827; border:1px solid #1e2d45; border-radius:8px; padding:16px;">{html}</div>', unsafe_allow_html=True)
-
+    # A trava de segurança: removemos as quebras de linha antes de renderizar
+    html_seguro = f'<div style="background:#111827; border:1px solid #1e2d45; border-radius:8px; padding:16px;">{html}</div>'.replace('\n', '')
+    
+    st.markdown(html_seguro, unsafe_allow_html=True)
 
 def _tabela_chamados(chamados):
     hoje = date.today()
