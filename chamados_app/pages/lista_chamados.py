@@ -92,27 +92,39 @@ def _renderizar_chamado(c):
 
 def _detalhes(c, atrasado):
     col1, col2 = st.columns(2)
+    
+    setor = c.get('setor', 'Desenvolvimento')
+    
     with col1:
         st.markdown(f"**Nº Chamado:** `{c.get('numero_chamado','')}`")
+        st.markdown(f"**Setor:** {setor}")
         st.markdown(f"**Tipo:** {c.get('tipo','')}")
         st.markdown(f"**Status:** {c.get('status','')}")
         st.markdown(f"**Solicitante:** {c.get('solicitante','—')}")
-        # Técnico adicionado na exibição de detalhes
-        st.markdown(f"**Técnico:** {c.get('tecnico','—')}")
+        st.markdown(f"**Registrado por:** {c.get('tecnico','—')}")
+        
+        if setor == "Suporte":
+            st.markdown(f"**Atendente ({c.get('nivel_suporte', 'N/A')}):** <span style='color:#10b981; font-weight:bold;'>{c.get('atendente_suporte','—')}</span>", unsafe_allow_html=True)
+            
         st.markdown(f"**Sistema/Módulo:** {c.get('sistema','—')}")
+        
     with col2:
         st.markdown(f"**Abertura:** {(c.get('data_abertura','') or '')[:10]}")
-        st.markdown(f"**Aprovação:** {(c.get('data_aprovacao','') or '—')[:10]}")
-        st.markdown(f"**Prazo Dev.:** {c.get('prazo_desenvolvimento','—') or '—'}")
-        st.markdown(f"**Tempo Estimado:** {c.get('tempo_estimado_dias','—') or '—'} dia(s)")
-        if atrasado:
-            st.markdown('<span style="color:#ef4444;">🔴 **CHAMADO ATRASADO**</span>', unsafe_allow_html=True)
+        
+        if setor == "Desenvolvimento":
+            st.markdown(f"**Aprovação:** {(c.get('data_aprovacao','') or '—')[:10]}")
+            st.markdown(f"**Prazo Dev.:** {c.get('prazo_desenvolvimento','—') or '—'}")
+            st.markdown(f"**Tempo Estimado:** {c.get('tempo_estimado_dias','—') or '—'} dia(s)")
+            if atrasado:
+                st.markdown('<span style="color:#ef4444;">🔴 **CHAMADO ATRASADO**</span>', unsafe_allow_html=True)
+        else:
+            st.markdown(f"**Prazo Análise:** {c.get('prazo_analise_dias','—') or '—'} dia(s)")
 
     if c.get("descricao"):
         st.markdown("**Descrição:**")
         st.markdown(f"> {c['descricao']}")
 
-    if c.get("descricao_reuniao"):
+    if c.get("descricao_reuniao") and setor == "Desenvolvimento":
         st.markdown("**Reunião de Aprovação:**")
         st.markdown(f"> {c['descricao_reuniao']}")
 
@@ -133,16 +145,17 @@ def _detalhes(c, atrasado):
                 st.link_button("📅 Google Agenda", link)
         with colb:
             if ics:
-                st.download_button("📥 Baixar .ics", data=ics,
-                                   file_name=f"chamado_{c.get('numero_chamado','x')}.ics",
-                                   mime="text/calendar")
+                st.download_button("📥 Baixar .ics", data=ics, file_name=f"chamado_{c.get('numero_chamado','x')}.ics", mime="text/calendar")
 
 
 def _formulario_edicao(c):
-    # Usando as listas globais para edição para não permitir campos vazios
     TIPOS_LISTA = ["Problema", "Sugestão", "Solicitação", "Melhoria", "Outros"]
     STATUS_LISTA = ["Aberto", "Aprovado", "Em Desenvolvimento", "Concluído", "Cancelado"]
+    TECNICOS_EDICAO = ["Ayrton", "Thiago Manoel", "Gabriel", "Diego"]
+    ATENDENTES_SUPORTE = ["Davydsson", "Tiago", "João Carlos", "Antonio"]
 
+    # No Streamlit, formulários de edição com campos dinâmicos são complexos. 
+    # Deixamos os campos abertos para facilitar a correção rápida pelo QA.
     with st.form(f"edit_{c['id']}"):
         e1, e2 = st.columns(2)
         with e1:
@@ -152,15 +165,18 @@ def _formulario_edicao(c):
             status_idx = STATUS_LISTA.index(c.get("status")) if c.get("status") in STATUS_LISTA else 0
             status = st.selectbox("Status", STATUS_LISTA, index=status_idx)
             
-            # Novo campo Técnico no formulário
             tecnico_atual = c.get("tecnico")
             tecnico_idx = TECNICOS_EDICAO.index(tecnico_atual) if tecnico_atual in TECNICOS_EDICAO else 0
-            tecnico = st.selectbox("Técnico", TECNICOS_EDICAO, index=tecnico_idx)
+            tecnico = st.selectbox("Registrado por", TECNICOS_EDICAO, index=tecnico_idx)
 
         with e2:
             titulo = st.text_input("Título", value=c.get("titulo",""))
             solicitante = st.text_input("Solicitante", value=c.get("solicitante","") or "")
             sistema = st.text_input("Sistema", value=c.get("sistema","") or "")
+            
+            atendente_atual = c.get("atendente_suporte")
+            atend_idx = ATENDENTES_SUPORTE.index(atendente_atual) if atendente_atual in ATENDENTES_SUPORTE else 0
+            atendente_suporte = st.selectbox("Atendente Suporte (Se aplicável)", ATENDENTES_SUPORTE, index=atend_idx)
 
         try:
             data_ap = date.fromisoformat(c["data_aprovacao"]) if c.get("data_aprovacao") else None
@@ -169,9 +185,14 @@ def _formulario_edicao(c):
             data_ap = None
             prazo_d = None
 
-        data_aprovacao = st.date_input("Data de Aprovação", value=data_ap)
-        prazo_dev = st.date_input("Prazo de Desenvolvimento", value=prazo_d)
-        tempo_est = st.number_input("Tempo Estimado (dias)", value=c.get("tempo_estimado_dias") or 0, min_value=0)
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            data_aprovacao = st.date_input("Data de Aprovação (Dev)", value=data_ap)
+            prazo_dev = st.date_input("Prazo Dev.", value=prazo_d)
+        with col_d2:
+            tempo_est = st.number_input("Tempo Est. Dev (dias)", value=c.get("tempo_estimado_dias") or 0, min_value=0)
+            prazo_analise = st.number_input("Prazo Análise Suporte", value=c.get("prazo_analise_dias") or 0, min_value=0)
+
         descricao = st.text_area("Descrição", value=c.get("descricao","") or "", height=100)
         descricao_reuniao = st.text_area("Reunião de Aprovação", value=c.get("descricao_reuniao","") or "", height=80)
         pendente = st.checkbox("⚠️ Pendente", value=c.get("pendente", False))
@@ -185,20 +206,15 @@ def _formulario_edicao(c):
 
         if save:
             dados = {
-                "numero_chamado": numero, 
-                "tipo": tipo, 
-                "status": status, 
-                "titulo": titulo,
-                "tecnico": tecnico,  # Incluído no dicionário de salvamento
+                "numero_chamado": numero, "tipo": tipo, "status": status, "titulo": titulo,
+                "tecnico": tecnico, "atendente_suporte": atendente_suporte,
                 "data_aprovacao": str(data_aprovacao) if data_aprovacao else None,
                 "prazo_desenvolvimento": str(prazo_dev) if prazo_dev else None,
                 "tempo_estimado_dias": tempo_est or None,
-                "solicitante": solicitante or None, 
-                "sistema": sistema or None,
-                "descricao": descricao, 
-                "descricao_reuniao": descricao_reuniao or None,
-                "pendente": pendente, 
-                "descricao_pendencia": desc_pend if pendente else None,
+                "prazo_analise_dias": prazo_analise or None,
+                "solicitante": solicitante or None, "sistema": sistema or None,
+                "descricao": descricao, "descricao_reuniao": descricao_reuniao or None,
+                "pendente": pendente, "descricao_pendencia": desc_pend if pendente else None,
             }
             try:
                 atualizar_chamado(c["id"], dados)

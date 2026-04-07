@@ -201,13 +201,14 @@ def _grafico_donut(dados, key_label, key_val, cores):
 def _tabela_chamados(chamados):
     hoje = date.today()
 
-    # Adicionado "Técnico" na lista de colunas
-    colunas = ["Nº", "Tipo", "Status", "Título", "Solicitante", "Técnico", "Abertura", "Prazo", "Pendente"]
+    colunas = ["Nº", "Setor", "Tipo", "Status", "Título", "Responsável", "Abertura", "Prazo", "Pend."]
     header = "".join(f'<th style="padding:10px 12px; text-align:left; color:#64748b; font-size:0.8rem; border-bottom:1px solid #1e2d45;">{c}</th>' for c in colunas)
 
     rows = ""
     for c in chamados:
-        prazo_str = c.get("prazo_desenvolvimento") or ""
+        setor = c.get("setor", "Dev")
+        prazo_str = c.get("prazo_desenvolvimento") if setor != "Suporte" else None
+        
         atrasado = False
         if prazo_str and c.get("status") not in ["Concluído", "Cancelado"]:
             try:
@@ -221,24 +222,24 @@ def _tabela_chamados(chamados):
 
         tipo_cores = {"Problema":"#fca5a5","Sugestão":"#93c5fd","Solicitação":"#6ee7b7","Melhoria":"#c4b5fd","Outros":"#d6d3d1"}
         tipo_cor = tipo_cores.get(c.get("tipo",""), "#d6d3d1")
+        
+        # Define quem é o responsável exibido na tabela dependendo do setor
+        responsavel = c.get('atendente_suporte', '') if setor == "Suporte" else c.get('tecnico', '')
 
         rows += f"""
         <tr style="border-bottom:1px solid #1e2d45; transition:background 0.15s;" onmouseover="this.style.background='#1a2235'" onmouseout="this.style.background='transparent'">
             <td style="padding:10px 12px; font-family:'JetBrains Mono'; font-size:0.8rem; color:#94a3b8;">{c.get('numero_chamado','')}</td>
+            <td style="padding:10px 12px; font-size:0.82rem; color:#cbd5e1;">{setor[:3].upper()}</td>
             <td style="padding:10px 12px;"><span style="color:{tipo_cor}; font-size:0.82rem;">{c.get('tipo','')}</span></td>
             <td style="padding:10px 12px; font-size:0.82rem; color:#e2e8f0;">{c.get('status','')}</td>
             <td style="padding:10px 12px; font-size:0.85rem; color:#e2e8f0;">{c.get('titulo','')}</td>
-            <td style="padding:10px 12px; font-size:0.82rem; color:#64748b;">{c.get('solicitante','') or '—'}</td>
-            
-            <td style="padding:10px 12px; font-size:0.82rem; color:#3b82f6; font-weight: 500;">{c.get('tecnico','') or '—'}</td>
-            
+            <td style="padding:10px 12px; font-size:0.82rem; color:#3b82f6; font-weight: 500;">{responsavel or '—'}</td>
             <td style="padding:10px 12px; font-size:0.82rem; color:#64748b;">{(c.get('data_abertura','') or '')[:10]}</td>
             <td style="padding:10px 12px; font-size:0.82rem; {atr_style}">{prazo_str[:10] if prazo_str else '—'}{' 🔴' if atrasado else ''}</td>
             <td style="padding:10px 12px; font-size:0.9rem; text-align: center;">{pend_icon}</td>
         </tr>
         """
 
-    # O replace('\n', '') previne que o Streamlit quebre a tabela e tente renderizar como Markdown
     tabela = f"""
     <div style="overflow-x:auto;">
     <table style="width:100%; border-collapse:collapse; background:#111827; border:1px solid #1e2d45; border-radius:8px; overflow:hidden;">
@@ -252,9 +253,8 @@ def _tabela_chamados(chamados):
 
 
 def _gerar_csv(chamados):
-    # Adicionado o "tecnico" na lista de colunas exportadas
-    cols = ["numero_chamado","tipo","status","titulo","solicitante","tecnico","sistema","data_abertura",
-            "data_aprovacao","prazo_desenvolvimento","tempo_estimado_dias","pendente","descricao_pendencia"]
+    cols = ["numero_chamado","setor","tipo","status","titulo","solicitante","tecnico","nivel_suporte", "atendente_suporte","sistema","data_abertura",
+            "data_aprovacao","prazo_desenvolvimento","tempo_estimado_dias","prazo_analise_dias","pendente","descricao_pendencia"]
     
     header = ",".join(cols)
     rows = []
@@ -265,6 +265,5 @@ def _gerar_csv(chamados):
             row.append(val)
         rows.append(",".join(row))
     
-    # Adicionando um BOM (Byte Order Mark) para garantir que o Excel no Windows leia os acentos do PT-BR corretamente
     csv_string = "\n".join([header] + rows)
     return "\ufeff" + csv_string
