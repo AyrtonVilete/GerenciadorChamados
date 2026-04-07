@@ -1,0 +1,31 @@
+# =========================
+# SEGURANÇA (CRÍTICO)
+# =========================
+# Ignora as credenciais do Streamlit, Supabase e Gmail
+.streamlit/secrets.toml
+.env
+
+# =========================
+# AMBIENTE PYTHON
+# =========================
+# Ignora a pasta do ambiente virtual (se você estiver usando uma)
+venv/
+env/
+.venv/
+
+# =========================
+# CACHE E ARQUIVOS TEMPORÁRIOS
+# =========================
+# Ignora arquivos de cache que o Python gera automaticamente
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# =========================
+# SISTEMA OPERACIONAL
+# =========================
+# Arquivos de sistema do Windows/Mac que não precisam ir pro repositório
+.DS_Store
+Thumbs.db
