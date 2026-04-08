@@ -1,12 +1,18 @@
 import streamlit as st
-from database import criar_chamado
+from database import criar_chamado, verificar_numero_existe # NOVO: Importação da função de validação
 from notificacoes import gerar_link_google_agenda, gerar_ics
 from datetime import date
+
+if "usuario" not in st.session_state:
+    st.error("🔒 Sessão expirada ou acesso direto negado.")
+    # Cria um botão que redireciona de volta para o app.py (Tela de Login)
+    st.page_link("app.py", label="⬅️ Ir para a Tela de Login")
+    st.stop()
 
 TIPOS = ["Problema", "Sugestão", "Solicitação", "Melhoria", "Outros"]
 STATUS = ["Aberto", "Aprovado", "Em Desenvolvimento", "Concluído", "Cancelado"]
 TECNICOS = ["Ayrton", "Thiago Manoel", "Gabriel", "Diego"]
-CLIENTES = ["FirstClass", "WQ Surf"] 
+CLIENTES = ["FirstClass", "WQ Surf"]
 
 def render():
     st.markdown('<div class="section-title">➕ Novo Chamado</div>', unsafe_allow_html=True)
@@ -58,7 +64,6 @@ def render():
         tempo_estimado = None
         prazo_analise = None
         
-        # Ajuste de Layout: Separamos as linhas para ficar balanceado
         if setor == "Desenvolvimento":
             st.markdown("<span style='color:#3b82f6; font-weight:600; font-size:0.9rem;'>🛠️ Dados de Desenvolvimento</span>", unsafe_allow_html=True)
             
@@ -70,7 +75,6 @@ def render():
                 cliente = st.selectbox("Cliente *", CLIENTES)
                 tempo_estimado = st.number_input("Tempo Estimado (dias)", min_value=0, value=0, step=1)
                 
-            # NOVA LINHA: Solicitante e Sistema lado a lado
             c5, c6 = st.columns(2)
             with c5:
                 solicitante = st.text_input("Solicitante", placeholder="Nome ou área solicitante")
@@ -86,7 +90,6 @@ def render():
             with c4:
                 cliente = st.selectbox("Cliente *", CLIENTES)
                 
-            # NOVA LINHA: Solicitante e Sistema lado a lado
             c5, c6 = st.columns(2)
             with c5:
                 solicitante = st.text_input("Solicitante", placeholder="Nome do cliente ou usuário")
@@ -125,8 +128,13 @@ def render():
         submitted = st.form_submit_button("💾 Salvar Chamado", use_container_width=True)
 
         if submitted:
+            # ==========================================
+            # VALIDAÇÕES INCLUINDO VERIFICAÇÃO DE DUPLICIDADE
+            # ==========================================
             if not numero or not titulo or not tipo or not tecnico or not cliente:
                 st.error("Preencha os campos obrigatórios: Nº do Chamado, Cliente, Título, Tipo e Técnico.")
+            elif verificar_numero_existe(numero): # NOVO: Trava de Duplicidade
+                st.error(f"❌ O chamado número **{numero}** já está cadastrado no sistema. Verifique a lista de chamados ou insira um número diferente.")
             elif pendente and not descricao_pendencia.strip():
                 st.error("⚠️ Você marcou o chamado como Pendente. Por favor, preencha o Motivo da Pendência.")
             elif prazo_dev and prazo_dev < data_abertura:

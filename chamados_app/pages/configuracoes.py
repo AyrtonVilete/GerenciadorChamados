@@ -2,6 +2,11 @@ import streamlit as st
 from database import chamados_proximos_prazo
 from notificacoes import enviar_email_lembrete
 
+if "usuario" not in st.session_state:
+    st.error("🔒 Sessão expirada ou acesso direto negado.")
+    # Cria um botão que redireciona de volta para o app.py (Tela de Login)
+    st.page_link("app.py", label="⬅️ Ir para a Tela de Login")
+    st.stop()
 
 def render():
     st.markdown('<div class="section-title">⚙️ Configurações</div>', unsafe_allow_html=True)
@@ -32,7 +37,7 @@ DIAS_ALERTA = 5   # Quantos dias antes do prazo para alertar
         1. Acesse [myaccount.google.com](https://myaccount.google.com)
         2. Vá em **Segurança** → **Verificação em duas etapas** (deve estar ativada)
         3. Pesquise por **"Senhas de app"** nas configurações de segurança
-        4. Selecione *Outro (nome personalizado)* → digite `GerenciaChamados`
+        4. Selecione *Outro (nome personalizado)* → digite `Gerenciador de Chamados`
         5. Clique em **Gerar** e copie a senha de 16 caracteres
         6. Cole essa senha no campo `SMTP_PASS` do `secrets.toml`
         """)

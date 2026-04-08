@@ -3,6 +3,12 @@ from database import listar_chamados, atualizar_chamado, deletar_chamado, buscar
 from notificacoes import gerar_link_google_agenda, gerar_ics
 from datetime import date
 
+if "usuario" not in st.session_state:
+    st.error("🔒 Sessão expirada ou acesso direto negado.")
+    # Cria um botão que redireciona de volta para o app.py (Tela de Login)
+    st.page_link("app.py", label="⬅️ Ir para a Tela de Login")
+    st.stop()
+
 TIPOS = ["", "Problema", "Sugestão", "Solicitação", "Melhoria", "Outros"]
 STATUS_FILTRO = ["", "Aberto", "Aprovado", "Em Desenvolvimento", "Concluído", "Cancelado"]
 TECNICOS_FILTRO = ["", "Ayrton", "Thiago Manoel", "Gabriel", "Diego"]
@@ -220,8 +226,10 @@ def _formulario_edicao(c):
         col_save, col_del = st.columns([3, 1])
         with col_save:
             save = st.form_submit_button("💾 Salvar Alterações", use_container_width=True)
-        with col_del:
-            delete = st.form_submit_button("🗑️ Excluir", use_container_width=True)
+        delete = False
+        if st.session_state.get("perfil") == "Admin":
+            with col_del:
+                delete = st.form_submit_button("🗑️ Excluir", use_container_width=True)
 
         if save:
             try: data_abertura_banco = date.fromisoformat((c.get("data_abertura") or "")[:10])

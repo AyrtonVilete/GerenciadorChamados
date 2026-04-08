@@ -3,6 +3,12 @@ from database import listar_chamados
 from datetime import date
 from collections import Counter
 
+if "usuario" not in st.session_state:
+    st.error("🔒 Sessão expirada ou acesso direto negado.")
+    # Cria um botão que redireciona de volta para o app.py (Tela de Login)
+    st.page_link("app.py", label="⬅️ Ir para a Tela de Login")
+    st.stop()
+
 def render():
     st.markdown('<div class="section-title">📊 Relatórios e Pesquisa</div>', unsafe_allow_html=True)
 
