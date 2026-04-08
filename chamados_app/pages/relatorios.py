@@ -1,8 +1,4 @@
 import streamlit as st
-from database import listar_chamados, chamados_por_tipo, chamados_por_status, estatisticas_gerais
-from datetime import date, datetime
-import json
-import streamlit as st
 from database import listar_chamados
 from datetime import date
 from collections import Counter
@@ -11,7 +7,6 @@ def render():
     st.markdown('<div class="section-title">📊 Relatórios e Pesquisa</div>', unsafe_allow_html=True)
 
     try:
-        # Puxamos apenas a lista completa uma vez. Os agregados serão calculados em memória.
         todos_chamados = listar_chamados()
     except Exception as e:
         st.error(f"Erro ao carregar dados: {e}")
@@ -21,59 +16,40 @@ def render():
         st.info("Nenhum dado disponível ainda. Cadastre chamados para visualizar relatórios.")
         return
 
-    # ==========================================
-    # 1. FILTROS DE BUSCA (Nova Seção)
-    # ==========================================
+    # Expandimos para 5 colunas para acomodar o Filtro de Cliente
     with st.expander("🔍 Filtros de Busca", expanded=True):
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1: 
             f_numero = st.text_input("Nº do Chamado", placeholder="Ex: 1079")
-            
         with col2:
-            # Pega dinamicamente os técnicos que existem no banco
+            clientes_unicos = sorted(list(set(c.get("cliente") for c in todos_chamados if c.get("cliente"))))
+            f_cliente = st.selectbox("Cliente", ["Todos"] + clientes_unicos) # NOVO: Filtro Cliente
+        with col3:
             tecnicos_unicos = sorted(list(set(c.get("tecnico") for c in todos_chamados if c.get("tecnico"))))
             f_tecnico = st.selectbox("Técnico", ["Todos"] + tecnicos_unicos)
-            
-        with col3:
+        with col4:
             status_unicos = sorted(list(set(c.get("status") for c in todos_chamados if c.get("status"))))
             f_status = st.multiselect("Status", status_unicos, placeholder="Selecione...")
-            
-        with col4:
+        with col5:
             tipos_unicos = sorted(list(set(c.get("tipo") for c in todos_chamados if c.get("tipo"))))
             f_tipo = st.multiselect("Tipo", tipos_unicos, placeholder="Selecione...")
 
-    # ==========================================
-    # 2. APLICANDO OS FILTROS NOS DADOS
-    # ==========================================
     dados_filtrados = todos_chamados
 
-    if f_numero:
-        dados_filtrados = [c for c in dados_filtrados if f_numero.lower() in str(c.get("numero_chamado", "")).lower()]
-    
-    if f_tecnico != "Todos":
-        dados_filtrados = [c for c in dados_filtrados if c.get("tecnico") == f_tecnico]
-        
-    if f_status:
-        dados_filtrados = [c for c in dados_filtrados if c.get("status") in f_status]
-        
-    if f_tipo:
-        dados_filtrados = [c for c in dados_filtrados if c.get("tipo") in f_tipo]
+    if f_numero: dados_filtrados = [c for c in dados_filtrados if f_numero.lower() in str(c.get("numero_chamado", "")).lower()]
+    if f_cliente != "Todos": dados_filtrados = [c for c in dados_filtrados if c.get("cliente") == f_cliente] # Aplica o filtro
+    if f_tecnico != "Todos": dados_filtrados = [c for c in dados_filtrados if c.get("tecnico") == f_tecnico]
+    if f_status: dados_filtrados = [c for c in dados_filtrados if c.get("status") in f_status]
+    if f_tipo: dados_filtrados = [c for c in dados_filtrados if c.get("tipo") in f_tipo]
 
     if not dados_filtrados:
         st.warning("Nenhum chamado encontrado com esses filtros.")
         return
 
-    # ==========================================
-    # 3. RECALCULANDO ESTATÍSTICAS COM OS DADOS FILTRADOS
-    # ==========================================
     stats = _calcular_stats_memoria(dados_filtrados)
     por_tipo = _calcular_agrupamento(dados_filtrados, "tipo")
     por_status = _calcular_agrupamento(dados_filtrados, "status")
 
-    # ==========================================
-    # 4. EXIBINDO KPIs E GRÁFICOS
-    # ==========================================
     st.markdown("### 📈 Indicadores")
     cols = st.columns(4)
     kpis = [
@@ -104,49 +80,33 @@ def render():
 
     st.markdown("---")
     csv = _gerar_csv(dados_filtrados)
-    st.download_button(
-        "📥 Exportar CSV (Dados Filtrados)",
-        data=csv,
-        file_name=f"chamados_filtrados_{date.today()}.csv",
-        mime="text/csv",
-        use_container_width=False
-    )
+    st.download_button("📥 Exportar CSV (Dados Filtrados)", data=csv, file_name=f"chamados_filtrados_{date.today()}.csv", mime="text/csv", use_container_width=False)
 
 def _calcular_stats_memoria(chamados):
     hoje = date.today()
     stats = {"total": len(chamados), "concluidos": 0, "pendentes": 0, "atrasados": 0}
-    
     for c in chamados:
-        if c.get("status") == "Concluído":
-            stats["concluidos"] += 1
-        if c.get("pendente"):
-            stats["pendentes"] += 1
-            
+        if c.get("status") == "Concluído": stats["concluidos"] += 1
+        if c.get("pendente"): stats["pendentes"] += 1
         prazo_str = c.get("prazo_desenvolvimento")
         if prazo_str and c.get("status") not in ["Concluído", "Cancelado"]:
             try:
-                if date.fromisoformat(prazo_str[:10]) < hoje:
-                    stats["atrasados"] += 1
-            except ValueError:
-                pass
+                if date.fromisoformat(prazo_str[:10]) < hoje: stats["atrasados"] += 1
+            except ValueError: pass
     return stats
 
 def _calcular_agrupamento(chamados, chave):
     contagem = Counter(c.get(chave, "Não Informado") for c in chamados)
-    # Converte o formato do Counter para a lista de dicionários que os gráficos esperam
     resultado = [{chave: k, "quantidade": v} for k, v in contagem.items()]
-    # Ordena do maior para o menor
     return sorted(resultado, key=lambda x: x["quantidade"], reverse=True)
 
 def _grafico_barras(dados, key_label, key_val, cores, uid):
     if not dados:
         st.info("Sem dados")
         return
-
     labels = [d[key_label] for d in dados]
     valores = [d[key_val] for d in dados]
     max_val = max(valores) if valores else 1
-
     html = '<div style="padding:10px;">'
     for i, (label, val) in enumerate(zip(labels, valores)):
         cor = cores[i % len(cores)]
@@ -163,17 +123,12 @@ def _grafico_barras(dados, key_label, key_val, cores, uid):
         </div>
         """
     html += "</div>"
-
-    # A trava de segurança: removemos as quebras de linha antes de renderizar
-    html_seguro = f'<div style="background:#111827; border:1px solid #1e2d45; border-radius:8px; padding:16px;">{html}</div>'.replace('\n', '')
-    
-    st.markdown(html_seguro, unsafe_allow_html=True)
+    st.markdown(f'<div style="background:#111827; border:1px solid #1e2d45; border-radius:8px; padding:16px;">{html}</div>'.replace('\n', ''), unsafe_allow_html=True)
 
 def _grafico_donut(dados, key_label, key_val, cores):
     if not dados:
         st.info("Sem dados")
         return
-
     total = sum(d[key_val] for d in dados)
     html = '<div style="padding:10px;">'
     for i, d in enumerate(dados):
@@ -187,51 +142,39 @@ def _grafico_donut(dados, key_label, key_val, cores):
             <span style="color:{cor}; font-weight:700; font-family:'JetBrains Mono'; font-size:0.82rem;">{pct}%</span>
         </div>
         """
-
-    # Barra empilhada
     html += '<div style="display:flex; height:10px; border-radius:6px; overflow:hidden; margin-top:12px;">'
     for i, d in enumerate(dados):
         cor = cores[i % len(cores)]
         pct = d[key_val] / total * 100 if total else 0
         html += f'<div style="width:{pct}%; background:{cor};"></div>'
     html += "</div></div>"
-
-    # A trava de segurança: removemos as quebras de linha antes de renderizar
-    html_seguro = f'<div style="background:#111827; border:1px solid #1e2d45; border-radius:8px; padding:16px;">{html}</div>'.replace('\n', '')
-    
-    st.markdown(html_seguro, unsafe_allow_html=True)
+    st.markdown(f'<div style="background:#111827; border:1px solid #1e2d45; border-radius:8px; padding:16px;">{html}</div>'.replace('\n', ''), unsafe_allow_html=True)
 
 def _tabela_chamados(chamados):
     hoje = date.today()
-
-    colunas = ["Nº", "Setor", "Tipo", "Status", "Título", "Responsável", "Abertura", "Prazo", "Pend."]
+    # Adicionado Cliente na tabela
+    colunas = ["Nº", "Cliente", "Setor", "Tipo", "Status", "Título", "Responsável", "Abertura", "Prazo", "Pend."]
     header = "".join(f'<th style="padding:10px 12px; text-align:left; color:#64748b; font-size:0.8rem; border-bottom:1px solid #1e2d45;">{c}</th>' for c in colunas)
-
     rows = ""
     for c in chamados:
         setor = c.get("setor", "Dev")
         prazo_str = c.get("prazo_desenvolvimento") if setor != "Suporte" else None
-        
         atrasado = False
         if prazo_str and c.get("status") not in ["Concluído", "Cancelado"]:
             try:
-                if date.fromisoformat(prazo_str) < hoje:
-                    atrasado = True
-            except ValueError:
-                pass
+                if date.fromisoformat(prazo_str) < hoje: atrasado = True
+            except ValueError: pass
 
         pend_icon = "⚠️" if c.get("pendente") else "—"
         atr_style = "color:#ef4444;" if atrasado else ""
-
         tipo_cores = {"Problema":"#fca5a5","Sugestão":"#93c5fd","Solicitação":"#6ee7b7","Melhoria":"#c4b5fd","Outros":"#d6d3d1"}
         tipo_cor = tipo_cores.get(c.get("tipo",""), "#d6d3d1")
-        
-        # Define quem é o responsável exibido na tabela dependendo do setor
         responsavel = c.get('atendente_suporte', '') if setor == "Suporte" else c.get('tecnico', '')
 
         rows += f"""
         <tr style="border-bottom:1px solid #1e2d45; transition:background 0.15s;" onmouseover="this.style.background='#1a2235'" onmouseout="this.style.background='transparent'">
             <td style="padding:10px 12px; font-family:'JetBrains Mono'; font-size:0.8rem; color:#94a3b8;">{c.get('numero_chamado','')}</td>
+            <td style="padding:10px 12px; font-size:0.82rem; color:#0ea5e9; font-weight: 500;">{c.get('cliente','')}</td>
             <td style="padding:10px 12px; font-size:0.82rem; color:#cbd5e1;">{setor[:3].upper()}</td>
             <td style="padding:10px 12px;"><span style="color:{tipo_cor}; font-size:0.82rem;">{c.get('tipo','')}</span></td>
             <td style="padding:10px 12px; font-size:0.82rem; color:#e2e8f0;">{c.get('status','')}</td>
@@ -242,23 +185,13 @@ def _tabela_chamados(chamados):
             <td style="padding:10px 12px; font-size:0.9rem; text-align: center;">{pend_icon}</td>
         </tr>
         """
-
-    tabela = f"""
-    <div style="overflow-x:auto;">
-    <table style="width:100%; border-collapse:collapse; background:#111827; border:1px solid #1e2d45; border-radius:8px; overflow:hidden;">
-        <thead><tr>{header}</tr></thead>
-        <tbody>{rows}</tbody>
-    </table>
-    </div>
-    """.replace('\n', '')
-    
+    tabela = f"""<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; background:#111827; border:1px solid #1e2d45; border-radius:8px; overflow:hidden;"><thead><tr>{header}</tr></thead><tbody>{rows}</tbody></table></div>""".replace('\n', '')
     st.markdown(tabela, unsafe_allow_html=True)
 
-
 def _gerar_csv(chamados):
-    cols = ["numero_chamado","setor","tipo","status","titulo","solicitante","tecnico","nivel_suporte", "atendente_suporte","sistema","data_abertura",
-            "data_aprovacao","prazo_desenvolvimento","tempo_estimado_dias","prazo_analise_dias","pendente","descricao_pendencia"]
-    
+    # Adicionado "cliente" na exportação CSV
+    cols = ["numero_chamado", "cliente", "setor","tipo","status","titulo","solicitante","tecnico","nivel_suporte", "atendente_suporte","sistema","data_abertura",
+            "data_aprovacao","prazo_desenvolvimento","tempo_estimado_dias","prazo_analise_dias","pendente","descricao_pendencia","resolucao", "versao_liberacao", "motivo_cancelamento"]
     header = ",".join(cols)
     rows = []
     for c in chamados:
@@ -267,6 +200,4 @@ def _gerar_csv(chamados):
             val = str(c.get(col, "") or "").replace(",", ";").replace("\n", " ")
             row.append(val)
         rows.append(",".join(row))
-    
-    csv_string = "\n".join([header] + rows)
-    return "\ufeff" + csv_string
+    return "\ufeff" + "\n".join([header] + rows)
