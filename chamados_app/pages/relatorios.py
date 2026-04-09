@@ -287,10 +287,14 @@ def _gerar_excel(chamados):
 
         # Ajusta as larguras das colunas
         for i, col in enumerate(df.columns):
-            tamanho_max = max(
-                df[col].astype(str).map(len).max() if not df[col].empty else 0,
-                len(str(col))
-            ) + 2
+            # Jeito blindado: usa o .str.len() que o novo Pandas adora
+            tamanho_conteudo = df[col].astype(str).str.len().max()
+            
+            # Se a coluna vier completamente vazia, previne o erro de NaN
+            if pd.isna(tamanho_conteudo):
+                tamanho_conteudo = 0
+                
+            tamanho_max = max(tamanho_conteudo, len(str(col))) + 2
             
             # Limita a largura máxima para não estourar a tela em descrições muito grandes
             tamanho_ajustado = min(tamanho_max, 60)
