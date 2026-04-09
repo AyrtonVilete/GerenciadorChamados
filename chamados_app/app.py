@@ -186,7 +186,7 @@ def main():
             </div>
             """, unsafe_allow_html=True)
 
-            paginas = ["🏠  Painel", "➕  Novo Chamado", "📋  Chamados", "📊  Relatórios"]
+            paginas = ["🏠  Painel", "📈  Dashboard BI", "➕  Novo Chamado", "📋  Chamados", "📊  Relatórios"]
             
             # Se for Admin, adiciona o painel de administração no menu
             if st.session_state.get("perfil") == "Admin":
@@ -215,6 +215,9 @@ def main():
         if page == "Painel":
             from pages import painel
             painel.render()
+        elif page == "Dashboard BI":
+            from pages import dashboard
+            dashboard.render()
         elif page == "Novo Chamado":
             from pages import novo_chamado
             novo_chamado.render()
