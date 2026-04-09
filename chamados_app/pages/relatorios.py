@@ -193,9 +193,17 @@ def _tabela_chamados(chamados):
         tipo_cor = tipo_cores.get(c.get("tipo",""), "#d6d3d1")
         responsavel = c.get('atendente_suporte', '') if setor == "Suporte" else c.get('tecnico', '')
 
+        # ==========================================
+        # NOVO: Geração do Link Dinâmico para o PDVNet
+        # ==========================================
+        numero_chamado = c.get('numero_chamado', '')
+        link_pdvnet = f"https://app.pdvnet.com.br/app/Chamado/{numero_chamado}"
+
         rows += f"""
         <tr style="border-bottom:1px solid #1e2d45; transition:background 0.15s;" onmouseover="this.style.background='#1a2235'" onmouseout="this.style.background='transparent'">
-            <td style="padding:10px 12px; font-family:'JetBrains Mono'; font-size:0.8rem; color:#94a3b8;">{c.get('numero_chamado','')}</td>
+            <td style="padding:10px 12px; font-family:'JetBrains Mono'; font-size:0.85rem;">
+                <a href="{link_pdvnet}" target="_blank" style="color:#3b82f6; text-decoration:none; font-weight:bold;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{numero_chamado} 🔗</a>
+            </td>
             <td style="padding:10px 12px; font-size:0.82rem; color:#0ea5e9; font-weight: 500;">{c.get('cliente','')}</td>
             <td style="padding:10px 12px; font-size:0.82rem; color:#cbd5e1;">{setor[:3].upper()}</td>
             <td style="padding:10px 12px;"><span style="color:{tipo_cor}; font-size:0.82rem;">{c.get('tipo','')}</span></td>

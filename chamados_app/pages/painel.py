@@ -66,6 +66,11 @@ def _novo_card_chamado(c):
     status = c.get('status', 'Indefinido')
     tecnico = c.get('tecnico', 'Não atribuído')
     
+    # ==========================================
+    # NOVO: Geração do Link Dinâmico para o PDVNet
+    # ==========================================
+    link_pdvnet = f"https://app.pdvnet.com.br/app/Chamado/{numero}"
+    
     # Formatando datas (pegando apenas os 10 primeiros caracteres YYYY-MM-DD)
     criado_em = (c.get('criado_em', '') or '')[:10]
     data_aprovacao = (c.get('data_aprovacao', '') or '')[:10]
@@ -114,11 +119,12 @@ def _novo_card_chamado(c):
         """
 
     # 5. Montagem do HTML (Design Dark Mode Nativo)
+    # A tag <a> foi inserida no lugar do <span> que mostrava o número do chamado
     html_card = f"""
     <div style="background-color: #1e293b; padding: 18px 24px; border-radius: 10px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: stretch; border-left: 5px solid {cor_status}; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);">
         <div style="flex: 1; padding-right: 20px; display: flex; flex-direction: column; justify-content: center;">
             <div style="margin-bottom: 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 12px;">
-                <span style="color: #94a3b8; font-family: 'Courier New', Courier, monospace; font-size: 1rem; font-weight: bold;">#{numero}</span>
+                <a href="{link_pdvnet}" target="_blank" style="color: #3b82f6; font-family: 'Courier New', Courier, monospace; font-size: 1rem; font-weight: bold; text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">#{numero} 🔗</a>
                 <span style="background-color: {cor_status}15; color: {cor_status}; padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; border: 1px solid {cor_status}40;">{status}</span>
                 <span style="color: #cbd5e1; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
