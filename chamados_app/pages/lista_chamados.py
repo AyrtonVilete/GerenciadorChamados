@@ -123,11 +123,13 @@ def _detalhes(c, atrasado):
 
 
 def _formulario_edicao(c):
-    status_atual = c.get("status")
+    from datetime import date
+    from database import atualizar_chamado, deletar_chamado
     
+    status_atual = c.get("status")
     if status_atual in ["Concluído", "Cancelado"]:
         st.warning(f"🔒 Este chamado está encerrado ({status_atual}) e não pode ser alterado.")
-        if st.button("🔓 Reabrir Chamado (Voltar para Aberto)", key=f"reabrir_{c['id']}"):
+        if st.button("🔓 Reabrir Chamado", key=f"reabrir_{c['id']}"):
             atualizar_chamado(c['id'], {"status": "Aberto", "resolucao": None, "versao_liberacao": None, "motivo_cancelamento": None})
             st.rerun()
         return
@@ -139,15 +141,10 @@ def _formulario_edicao(c):
 
     setor = c.get("setor", "Desenvolvimento")
     
-    # Trava 2: Transição de Status
-    if status_atual == "Aberto":
-        status_permitidos = ["Aberto", "Aprovado", "Cancelado"] if setor == "Desenvolvimento" else ["Aberto", "Em Desenvolvimento", "Concluído", "Cancelado"]
-    elif status_atual == "Aprovado":
-        status_permitidos = ["Aprovado", "Em Desenvolvimento", "Cancelado"]
-    elif status_atual == "Em Desenvolvimento":
-        status_permitidos = ["Em Desenvolvimento", "Concluído", "Cancelado"]
-    else:
-        status_permitidos = [status_atual]
+    if status_atual == "Aberto": status_permitidos = ["Aberto", "Aprovado", "Cancelado"] if setor == "Desenvolvimento" else ["Aberto", "Em Desenvolvimento", "Concluído", "Cancelado"]
+    elif status_atual == "Aprovado": status_permitidos = ["Aprovado", "Em Desenvolvimento", "Cancelado"]
+    elif status_atual == "Em Desenvolvimento": status_permitidos = ["Em Desenvolvimento", "Concluído", "Cancelado"]
+    else: status_permitidos = [status_atual]
 
     with st.form(f"edit_{c['id']}"):
         st.markdown(f"#### ✏️ Editando Chamado de {setor}")
@@ -164,38 +161,40 @@ def _formulario_edicao(c):
 
         with e2:
             titulo = st.text_input("Título", value=c.get("titulo",""))
-            
             cliente_atual = c.get("cliente")
             cliente_idx = CLIENTES_EDICAO.index(cliente_atual) if cliente_atual in CLIENTES_EDICAO else 0
             cliente = st.selectbox("Cliente", CLIENTES_EDICAO, index=cliente_idx)
-            
             solicitante = st.text_input("Solicitante", value=c.get("solicitante","") or "")
             sistema = st.text_input("Sistema / Módulo", value=c.get("sistema","") or "")
 
         st.markdown("---")
-        
-        # Inicializa as variáveis com nulo para garantir que o banco fique limpo
-        data_aprovacao = None
-        prazo_dev = None
-        tempo_est = None
-        descricao_reuniao = None
-        atendente_suporte = None
-        prazo_analise = None
+        data_aprovacao = None; prazo_dev = None; tempo_est = None; descricao_reuniao = None; atendente_suporte = None; prazo_analise = None; desenvolvedor = "Não Atribuído"
 
-        # ==========================================
-        # SEPARAÇÃO DE DADOS: Suporte vs Desenvolvimento
-        # ==========================================
         if setor == "Desenvolvimento":
             try: data_ap = date.fromisoformat(c["data_aprovacao"]) if c.get("data_aprovacao") else None
             except: data_ap = None
-            
             try: prazo_d = date.fromisoformat(c["prazo_desenvolvimento"]) if c.get("prazo_desenvolvimento") else None
             except: prazo_d = None
+
+            LISTA_DEVS = [
+                "Não Atribuído", 
+                "Gustavo (Socio)", 
+                "Jaylson (Socio)", 
+                "Diego Lima (Socio)", 
+                "Gabriel (Supervisor)", 
+                "Evandro (Dev Jr)", 
+                "Gustavo (Dev Jr)", 
+                "Pablo (Dev Jr)", 
+                "Raquel (Dev Jr)"
+            ]
+            dev_atual = c.get("desenvolvedor", "Não Atribuído")
+            dev_idx = LISTA_DEVS.index(dev_atual) if dev_atual in LISTA_DEVS else 0
 
             c3, c4 = st.columns(2)
             with c3:
                 data_aprovacao = st.date_input("Data de Aprovação (Dev)", value=data_ap)
                 prazo_dev = st.date_input("Prazo Dev.", value=prazo_d)
+                desenvolvedor = st.selectbox("Desenvolvedor Responsável", LISTA_DEVS, index=dev_idx)
             with c4:
                 tempo_est = st.number_input("Tempo Est. Dev (dias)", value=c.get("tempo_estimado_dias") or 0, min_value=0)
                 descricao_reuniao = st.text_area("Reunião de Aprovação", value=c.get("descricao_reuniao","") or "", height=80)
@@ -208,7 +207,6 @@ def _formulario_edicao(c):
                 atendente_suporte = st.selectbox("Atendente Suporte", ATENDENTES_SUPORTE, index=atend_idx)
             with c4:
                 prazo_analise = st.number_input("Prazo Análise Suporte (dias)", value=c.get("prazo_analise_dias") or 0, min_value=0)
-
 
         st.markdown("---")
         descricao = st.text_area("Descrição", value=c.get("descricao","") or "", height=100)
@@ -226,35 +224,35 @@ def _formulario_edicao(c):
         col_save, col_del = st.columns([3, 1])
         with col_save:
             save = st.form_submit_button("💾 Salvar Alterações", use_container_width=True)
+        
         delete = False
         if st.session_state.get("perfil") == "Admin":
-            with col_del:
-                delete = st.form_submit_button("🗑️ Excluir", use_container_width=True)
+            with col_del: delete = st.form_submit_button("🗑️ Excluir", use_container_width=True)
 
         if save:
             try: data_abertura_banco = date.fromisoformat((c.get("data_abertura") or "")[:10])
             except: data_abertura_banco = date.today()
 
             if prazo_dev and prazo_dev < data_abertura_banco:
-                st.error("⏳ O Prazo de Desenvolvimento não pode ser anterior à Data de Abertura do chamado!")
+                st.error("⏳ O Prazo não pode ser anterior à Data de Abertura!")
             elif status == "Aprovado" and not data_aprovacao:
-                st.error("📅 É obrigatório informar a Data de Aprovação para mudar o status para 'Aprovado'.")
+                st.error("📅 Informe a Data de Aprovação para status 'Aprovado'.")
             elif status in ["Concluído", "Cancelado"] and not resolucao.strip():
-                 st.error(f"🏁 Para alterar o status para '{status}', informe a Solução/Motivo na caixa ao lado.")
+                 st.error(f"🏁 Informe a Solução/Motivo para alterar para '{status}'.")
             else:
                 dados = {
                     "numero_chamado": numero, "cliente": cliente, "tipo": tipo, "status": status, "titulo": titulo,
                     "tecnico": tecnico, "atendente_suporte": atendente_suporte,
                     "data_aprovacao": str(data_aprovacao) if data_aprovacao else None,
                     "prazo_desenvolvimento": str(prazo_dev) if prazo_dev else None,
-                    "tempo_estimado_dias": tempo_est or None,
-                    "prazo_analise_dias": prazo_analise or None,
+                    "tempo_estimado_dias": tempo_est or None, "prazo_analise_dias": prazo_analise or None,
                     "solicitante": solicitante or None, "sistema": sistema or None,
                     "descricao": descricao, "descricao_reuniao": descricao_reuniao or None,
                     "pendente": pendente, "descricao_pendencia": desc_pend if pendente else None,
                     "resolucao": resolucao if status == "Concluído" else None,
                     "versao_liberacao": versao if status == "Concluído" else None,
                     "motivo_cancelamento": resolucao if status == "Cancelado" else None,
+                    "desenvolvedor": desenvolvedor if setor == "Desenvolvimento" and desenvolvedor != "Não Atribuído" else None
                 }
                 try:
                     atualizar_chamado(c["id"], dados)

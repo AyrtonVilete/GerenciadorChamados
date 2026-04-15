@@ -1,13 +1,16 @@
 import streamlit as st
-from database import criar_chamado, verificar_numero_existe # NOVO: Importação da função de validação
+from database import criar_chamado, verificar_numero_existe
 from notificacoes import gerar_link_google_agenda, gerar_ics
 from datetime import date
 
+# ==========================================
+# CADEADO INTELIGENTE DE SEGURANÇA
+# ==========================================
 if "usuario" not in st.session_state:
     st.error("🔒 Sessão expirada ou acesso direto negado.")
-    # Cria um botão que redireciona de volta para o app.py (Tela de Login)
     st.page_link("app.py", label="⬅️ Ir para a Tela de Login")
     st.stop()
+# ==========================================
 
 TIPOS = ["Problema", "Sugestão", "Solicitação", "Melhoria", "Outros"]
 STATUS = ["Aberto", "Aprovado", "Em Desenvolvimento", "Concluído", "Cancelado"]
@@ -17,9 +20,6 @@ CLIENTES = ["FirstClass", "WQ Surf"]
 def render():
     st.markdown('<div class="section-title">➕ Novo Chamado</div>', unsafe_allow_html=True)
 
-    # ==========================================
-    # 1. CONTROLES DINÂMICOS (Fora do form)
-    # ==========================================
     st.markdown("### Configurações Iniciais")
     col_setor, col_status = st.columns(2)
     
@@ -43,26 +43,23 @@ def render():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ==========================================
-    # 2. FORMULÁRIO PRINCIPAL
-    # ==========================================
     with st.form("form_novo_chamado", clear_on_submit=True):
         c1, c2 = st.columns(2)
         with c1:
-            numero = st.text_input("Nº do Chamado *", placeholder="Ex: CHM-2024-001")
+            numero = st.text_input("Nº do Chamado *", placeholder="Ex: 1079")
             tipo = st.selectbox("Tipo *", TIPOS)
         with c2:
             titulo = st.text_input("Título / Resumo *", placeholder="Descrição curta do chamado")
             data_abertura = st.date_input("Data de Abertura *", value=date.today())
             
         tecnico = st.selectbox("Registrado por (Técnico) *", TECNICOS)
-
         st.markdown("---")
         
         data_aprovacao = None
         prazo_dev = None
         tempo_estimado = None
         prazo_analise = None
+        desenvolvedor = "Não Atribuído"
         
         if setor == "Desenvolvimento":
             st.markdown("<span style='color:#3b82f6; font-weight:600; font-size:0.9rem;'>🛠️ Dados de Desenvolvimento</span>", unsafe_allow_html=True)
@@ -78,6 +75,20 @@ def render():
             c5, c6 = st.columns(2)
             with c5:
                 solicitante = st.text_input("Solicitante", placeholder="Nome ou área solicitante")
+                desenvolvedor = st.selectbox(
+                    "Desenvolvedor Responsável", 
+                    [
+                        "Não Atribuído", 
+                        "Gustavo (Socio)", 
+                        "Jaylson (Socio)", 
+                        "Diego Lima (Socio)", 
+                        "Gabriel (Supervisor)", 
+                        "Evandro (Dev Jr)", 
+                        "Gustavo (Dev Jr)", 
+                        "Pablo (Dev Jr)", 
+                        "Raquel (Dev Jr)"
+                    ]
+                )
             with c6:
                 sistema = st.text_input("Sistema / Módulo", placeholder="Ex: ERP, Faturamento...")
                 
@@ -104,7 +115,6 @@ def render():
             descricao_reuniao = st.text_area("Descrição da Reunião de Aprovação", height=80, placeholder="Anotações...")
 
         st.markdown("---")
-        
         st.markdown("<span style='color:#f59e0b; font-weight:600; font-size:0.85rem;'>⚠️ Tratamento de Pendências</span>", unsafe_allow_html=True)
         pendente = st.checkbox("Marcar chamado como Pendente")
         descricao_pendencia = st.text_area("Motivo da Pendência", height=80, placeholder="Preencha apenas se marcar o chamado como pendente acima...")
@@ -128,23 +138,20 @@ def render():
         submitted = st.form_submit_button("💾 Salvar Chamado", use_container_width=True)
 
         if submitted:
-            # ==========================================
-            # VALIDAÇÕES INCLUINDO VERIFICAÇÃO DE DUPLICIDADE
-            # ==========================================
             if not numero or not titulo or not tipo or not tecnico or not cliente:
                 st.error("Preencha os campos obrigatórios: Nº do Chamado, Cliente, Título, Tipo e Técnico.")
-            elif verificar_numero_existe(numero): # NOVO: Trava de Duplicidade
-                st.error(f"❌ O chamado número **{numero}** já está cadastrado no sistema. Verifique a lista de chamados ou insira um número diferente.")
+            elif verificar_numero_existe(numero):
+                st.error(f"❌ O chamado número **{numero}** já está cadastrado no sistema.")
             elif pendente and not descricao_pendencia.strip():
-                st.error("⚠️ Você marcou o chamado como Pendente. Por favor, preencha o Motivo da Pendência.")
+                st.error("⚠️ Preencha o Motivo da Pendência.")
             elif prazo_dev and prazo_dev < data_abertura:
-                st.error("⏳ O Prazo de Desenvolvimento não pode ser anterior à Data de Abertura do chamado!")
+                st.error("⏳ O Prazo não pode ser anterior à Data de Abertura!")
             elif status == "Aprovado" and not data_aprovacao:
-                st.error("📅 Para iniciar com status 'Aprovado', é obrigatório preencher a Data de Aprovação.")
+                st.error("📅 Informe a Data de Aprovação.")
             elif status == "Concluído" and not resolucao.strip():
-                st.error("🏁 Para criar um chamado 'Concluído', é obrigatório preencher a Solução do Chamado.")
+                st.error("🏁 Preencha a Solução do Chamado.")
             elif status == "Cancelado" and not motivo_cancelamento.strip():
-                st.error("🚫 Para criar um chamado 'Cancelado', é obrigatório preencher o Motivo do Cancelamento.")
+                st.error("🚫 Preencha o Motivo do Cancelamento.")
             else:
                 dados = {
                     "numero_chamado": numero, "setor": setor, "cliente": cliente, "tipo": tipo, "status": status,
@@ -158,7 +165,8 @@ def render():
                     "prazo_desenvolvimento": str(prazo_dev) if prazo_dev else None,
                     "tempo_estimado_dias": tempo_estimado or None, "descricao_reuniao": descricao_reuniao or None,
                     "nivel_suporte": nivel_suporte, "atendente_suporte": atendente_suporte,
-                    "prazo_analise_dias": prazo_analise or None
+                    "prazo_analise_dias": prazo_analise or None,
+                    "desenvolvedor": desenvolvedor if setor == "Desenvolvimento" and desenvolvedor != "Não Atribuído" else None
                 }
                 
                 try:
@@ -171,15 +179,8 @@ def render():
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
 
-    # ==========================================
-    # 3. MENSAGEM DE SUCESSO E AGENDA
-    # ==========================================
     if 'chamado_criado' in st.session_state:
-        msg_sucesso = f"✅ Chamado **{st.session_state['numero_gerado']}** criado com sucesso!"
-        if st.session_state.get('atendente_sup'):
-            msg_sucesso += f" Atribuído para: **{st.session_state['atendente_sup']}**"
-            
-        st.success(msg_sucesso)
+        st.success(f"✅ Chamado **{st.session_state['numero_gerado']}** criado com sucesso!")
 
         if st.session_state.get('prazo_dev'):
             chamado_sucesso = st.session_state['chamado_criado']
@@ -189,14 +190,10 @@ def render():
             ics_content = gerar_ics(chamado_sucesso)
 
             st.markdown("---")
-            st.markdown("#### 📅 Adicionar ao Google Agenda")
             col_a, col_b = st.columns(2)
-            with col_a:
-                st.link_button("🗓️ Abrir Google Agenda", link_agenda, use_container_width=True)
-            with col_b:
-                st.download_button("📥 Baixar .ics", data=ics_content, file_name=f"chamado_{st.session_state['numero_gerado']}.ics", mime="text/calendar", use_container_width=True)
+            with col_a: st.link_button("🗓️ Abrir Google Agenda", link_agenda, use_container_width=True)
+            with col_b: st.download_button("📥 Baixar .ics", data=ics_content, file_name=f"chamado_{st.session_state['numero_gerado']}.ics", mime="text/calendar", use_container_width=True)
             
-        st.markdown("<br>", unsafe_allow_html=True)
         if st.button("✨ Cadastrar Novo Chamado", use_container_width=True):
             del st.session_state['chamado_criado']
             st.rerun()

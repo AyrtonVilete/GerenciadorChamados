@@ -32,16 +32,14 @@ def render():
         return
 
     # ==========================================
-    # 2. FILTROS GERAIS (Sidebar ou Expander)
+    # 2. FILTROS GERAIS COM DESENVOLVEDOR (4 COLUNAS)
     # ==========================================
     with st.expander("🎛️ Filtros do Dashboard", expanded=True):
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         
         with c1:
-            # Filtro de Data
             data_min = df['data_abertura'].min().date() if not df['data_abertura'].isnull().all() else datetime.today().date()
             data_max = df['data_abertura'].max().date() if not df['data_abertura'].isnull().all() else datetime.today().date()
-            
             periodo = st.date_input("Período de Abertura", value=(data_min, data_max), format="DD/MM/YYYY")
             
         with c2:
@@ -51,8 +49,15 @@ def render():
         with c3:
             setores = ["Todos"] + sorted(df['setor'].dropna().unique().tolist())
             f_setor = st.selectbox("Filtrar por Setor", setores)
+            
+        with c4:
+            if 'desenvolvedor' in df.columns:
+                devs = ["Todos"] + sorted(df['desenvolvedor'].dropna().unique().tolist())
+            else:
+                devs = ["Todos"]
+            f_dev = st.selectbox("Filtrar por Dev", devs)
 
-    # Aplica os filtros no DataFrame
+    # APLICA OS FILTROS NO DATAFRAME
     df_filtrado = df.copy()
     
     if len(periodo) == 2:
@@ -65,6 +70,9 @@ def render():
         
     if f_setor != "Todos":
         df_filtrado = df_filtrado[df_filtrado['setor'] == f_setor]
+        
+    if f_dev != "Todos" and 'desenvolvedor' in df_filtrado.columns:
+        df_filtrado = df_filtrado[df_filtrado['desenvolvedor'] == f_dev]
 
     if df_filtrado.empty:
         st.warning("Nenhum chamado encontrado para os filtros selecionados.")
@@ -89,9 +97,8 @@ def render():
     st.markdown("<hr style='border-color: #1e2d45; margin: 20px 0;'>", unsafe_allow_html=True)
 
     # ==========================================
-    # 4. GRÁFICOS (PLOTLY)
+    # 4. GRÁFICOS GERAIS (PLOTLY)
     # ==========================================
-    # Ajuste de layout para Dark Mode no Plotly
     template_dark = "plotly_dark"
     cor_azul = "#3b82f6"
     
@@ -99,7 +106,6 @@ def render():
 
     with col_graf1:
         st.markdown("#### Evolução de Chamados (Linha do Tempo)")
-        # Agrupa os chamados por dia
         df_tempo = df_filtrado.groupby(df_filtrado['data_abertura'].dt.date).size().reset_index(name='Quantidade')
         
         fig_tempo = px.area(
@@ -151,3 +157,45 @@ def render():
         )
         fig_tipo.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=10, l=10, r=10, b=10))
         st.plotly_chart(fig_tipo, use_container_width=True)
+
+    # ==========================================
+    # 5. NOVO GRÁFICO: ALOCAÇÃO DE DESENVOLVEDORES
+    # ==========================================
+    st.markdown("<hr style='border-color: #1e2d45; margin: 20px 0;'>", unsafe_allow_html=True)
+    st.markdown("### 👨‍💻 Produtividade e Alocação da Equipe (Dev)")
+    
+    # Filtramos apenas o setor de Desenvolvimento para este gráfico específico
+    df_devs = df_filtrado[df_filtrado['setor'] == 'Desenvolvimento']
+    
+    if not df_devs.empty and 'desenvolvedor' in df_devs.columns:
+        # Agrupa por Desenvolvedor e por Status para criar as barras lado a lado
+        df_alocacao = df_devs.groupby(['desenvolvedor', 'status']).size().reset_index(name='Quantidade')
+        
+        # Mapeamento de cores padronizado para ficar visualmente lógico
+        cores_status = {
+            "Aberto": "#3b82f6",             # Azul
+            "Aprovado": "#0ea5e9",           # Ciano
+            "Em Desenvolvimento": "#a78bfa", # Roxo
+            "Concluído": "#10b981",          # Verde
+            "Cancelado": "#ef4444"           # Vermelho
+        }
+
+        fig_alocacao = px.bar(
+            df_alocacao, 
+            x='desenvolvedor', 
+            y='Quantidade', 
+            color='status',
+            barmode='group', # Isso coloca as barras lado a lado em vez de empilhadas
+            template=template_dark,
+            color_discrete_map=cores_status,
+            labels={'desenvolvedor': 'Desenvolvedor', 'Quantidade': 'Volume de Chamados', 'status': 'Status'}
+        )
+        fig_alocacao.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', 
+            plot_bgcolor='rgba(0,0,0,0)', 
+            margin=dict(t=10, l=10, r=10, b=10),
+            xaxis={'categoryorder': 'total descending'} # Ordena do dev com mais chamados pro com menos
+        )
+        st.plotly_chart(fig_alocacao, use_container_width=True)
+    else:
+        st.info("Nenhum dado do setor de Desenvolvimento encontrado para os filtros atuais.")
